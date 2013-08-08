@@ -48,6 +48,9 @@ public abstract class MultiTenancyJob implements Job {
 
   @Override
   public void execute(JobExecutionContext context) throws JobExecutionException {
+    
+    LOG.warn("Running MultiTenancyJob ===================================================================== ");
+    
     RepositoryService repoService = (RepositoryService) ExoContainerContext.getCurrentContainer()
                                                                            .getComponentInstanceOfType(RepositoryService.class);
     List<RepositoryEntry> entries = repoService.getConfig().getRepositoryConfigurations();

@@ -14,24 +14,14 @@
 * You should have received a copy of the GNU General Public License
 * along with this program; if not, see<http://www.gnu.org/licenses/>.
  */
-package org.exoplatform.commons.api.notification.service.setting;
+package org.exoplatform.commons.api.notification.plugin;
 
-import java.util.List;
+import java.util.Map;
 
-import org.exoplatform.commons.api.notification.model.UserSetting;
-import org.exoplatform.commons.api.notification.plugin.UserSettingPlugin;
+import org.exoplatform.container.component.BaseComponentPlugin;
 
-public interface UserSettingService {
-
-  void save(UserSetting notificationSetting);
-
-  UserSetting get(String userId);
-
-  List<UserSetting> getDaily(int offset, int limit);
-
-  long getNumberOfDaily();
+public abstract class UserSettingPlugin extends BaseComponentPlugin {
   
-  List<UserSetting> getDefaultDaily();
-  
-  void addUserSettingPlugins(UserSettingPlugin plugin);
+  public abstract Map<String, String> get(String userId);
+
 }

@@ -19,7 +19,9 @@ package org.exoplatform.commons.notification.impl.setting;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -28,6 +30,7 @@ import javax.jcr.query.Query;
 import javax.jcr.query.QueryManager;
 
 import org.exoplatform.commons.api.notification.model.UserSetting;
+import org.exoplatform.commons.api.notification.plugin.UserSettingPlugin;
 import org.exoplatform.commons.api.notification.service.setting.UserSettingService;
 import org.exoplatform.commons.api.settings.SettingService;
 import org.exoplatform.commons.api.settings.SettingValue;
@@ -36,7 +39,9 @@ import org.exoplatform.commons.api.settings.data.Scope;
 import org.exoplatform.commons.notification.NotificationConfiguration;
 import org.exoplatform.commons.notification.NotificationUtils;
 import org.exoplatform.commons.notification.impl.AbstractService;
+import org.exoplatform.container.ExoContainerContext;
 import org.exoplatform.services.jcr.ext.common.SessionProvider;
+import org.exoplatform.services.jcr.ext.hierarchy.NodeHierarchyCreator;
 import org.exoplatform.services.jcr.impl.core.query.QueryImpl;
 import org.exoplatform.services.log.ExoLogger;
 import org.exoplatform.services.log.Log;
@@ -52,6 +57,14 @@ public class UserSettingServiceImpl extends AbstractService implements UserSetti
   private String                    workspace;
 
   private NotificationConfiguration configuration;
+  
+  public static final String APP_DATA = "ApplicationData";
+  
+  public static final String APP_NAME = "EmailNotification";
+  
+  public static final String PREFS = "Prefs";
+  
+  private Map<String, UserSettingPlugin> userSettingPlugins = new HashMap<String, UserSettingPlugin>();
 
   public UserSettingServiceImpl(SettingService settingService, NotificationConfiguration configuration) {
     this.settingService = settingService;
@@ -66,7 +79,7 @@ public class UserSettingServiceImpl extends AbstractService implements UserSetti
     String instantlys = NotificationUtils.listToString(model.getInstantlyProviders());
     String dailys = NotificationUtils.listToString(model.getDailyProviders());
     String weeklys = NotificationUtils.listToString(model.getWeeklyProviders());
-
+    
     saveUserSetting(userId, EXO_IS_ACTIVE, String.valueOf(model.isActive()));
     saveUserSetting(userId, EXO_INSTANTLY, instantlys);
     saveUserSetting(userId, EXO_DAILY, dailys);
@@ -91,19 +104,38 @@ public class UserSettingServiceImpl extends AbstractService implements UserSetti
   public UserSetting get(String userId) {
     UserSetting model = UserSetting.getInstance();
 
-    //
-    List<String> instantlys = getArrayListValue(userId, EXO_INSTANTLY, null);
-    if (instantlys != null) {
-      model.setUserId(userId);
-      model.setActive(isActive(userId));
-      model.setInstantlyProviders(instantlys);
-      model.setDailyProviders(getArrayListValue(userId, EXO_DAILY, Collections.<String> emptyList()));
-      model.setWeeklyProviders(getArrayListValue(userId, EXO_WEEKLY, Collections.<String> emptyList()));
-    } else {
-      model = UserSetting.getDefaultInstance().setUserId(userId);
+    try {
       //
-      addMixin(userId);
+      List<String> instantlys = getArrayListValue(userId, EXO_INSTANTLY, null);
+      if (instantlys != null) {
+        model.setUserId(userId);
+        model.setActive(isActive(userId));
+        model.setInstantlyProviders(instantlys);
+        model.setDailyProviders(getArrayListValue(userId, EXO_DAILY, Collections.<String> emptyList()));
+        model.setWeeklyProviders(getArrayListValue(userId, EXO_WEEKLY, Collections.<String> emptyList()));
+      }
+      else {
+        
+        UserSettingPlugin plugin = getUserSettingPlugin();
+        Map<String, String> oldSetting = null;
+        if (plugin != null) {
+          oldSetting = getUserSettingPlugin().get(userId);
+        }
+        LOG.warn("UserSetting.get("+ userId +")  ===== " + oldSetting);
+
+        if (oldSetting != null && oldSetting.size() > 0) {
+          
+        } else {
+          model = UserSetting.getDefaultInstance().setUserId(userId);
+          //
+          addMixin(userId);
+        }
+      }
+      
+    } catch (Exception e) {
+      LOG.error("Get user setting failed with id "+ userId, e);
     }
+    
     return model;
   }
 
@@ -313,6 +345,63 @@ public class UserSettingServiceImpl extends AbstractService implements UserSetti
     }
 
     return users;
+  }
+  
+  private UserSetting getOldUserSetting(String userId, Node userAppDataNode, String nodePath) throws Exception {
+    
+    UserSetting model = UserSetting.getDefaultInstance().setUserId(userId);
+
+    Node prefsNode = userAppDataNode.getNode(nodePath);
+    String interval = prefsNode.getProperty("Interval").getString();
+    Boolean isSummaryMail = prefsNode.getProperty("isSummaryMail").getBoolean();
+
+    List<String> notificationPlugins = Arrays.asList(prefsNode.getProperty("NotificationPlugins")
+                                                     .getString()
+                                                     .split(","));
+    if (isSummaryMail) {
+      //setting equals to Digest setting
+      if (interval.equals("day")) {
+        //Daily
+        model.setDailyProviders(convertToNewProviderIds(notificationPlugins));
+      } else if (interval.equals("week")) {
+        //Weekly
+        model.setWeeklyProviders(convertToNewProviderIds(notificationPlugins));
+      } else if (interval.equals("month")) {
+        //Monthly
+        //TODO: Need support this feature in nearly future 
+      }
+    } else {
+      //Instantly
+      model.setInstantlyProviders(convertToNewProviderIds(notificationPlugins));
+    }
+    
+    return model;
+  }
+  
+  public void addUserSettingPlugins(UserSettingPlugin plugin) {
+    this.userSettingPlugins.put(plugin.getClass().getSimpleName(), plugin);
+  }
+  
+  private UserSettingPlugin getUserSettingPlugin() {
+    return this.userSettingPlugins.get("UserSettingPluginImpl");
+  }
+  
+  private List<String> convertToNewProviderIds(List<String> oldProviderIds) {
+    
+    List<String> result = new ArrayList<String>();
+    for (String providerId : oldProviderIds) {
+      if ("UserJoinTenantNotificationPlugin".equals(providerId)){
+        result.add("NewUserPlugin");
+      } else if ("ConnectionNotificationPlugin".equals(providerId)) {
+        result.add("RelationshipRecievedRequestPlugin");
+      } else if ("RequestToJoinSpacePlugin".equals(providerId)) {
+        result.add("RequestJoinSpacePlugin");
+      } else if ("SpaceNotificationPlugin".equals(providerId)) {
+        result.add("SpaceInvitationPlugin");
+      }
+    }
+    
+    return result;
   }
 
 }

@@ -30,6 +30,7 @@ public class NotificationJob extends MultiTenancyJob {
   
   @Override
   public Class<? extends MultiTenancyTask> getTask() {
+    LOG.warn("Running NotificationJob [getTask] ===================================================================== ");
     return SendNotificationTask.class;
   }
 

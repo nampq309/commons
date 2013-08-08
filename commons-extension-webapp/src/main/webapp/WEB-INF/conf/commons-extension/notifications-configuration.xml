@@ -202,6 +202,7 @@
       </init-params>
     </component-plugin>
   </external-component-plugins>
+  <!-- 
   <external-component-plugins>
     <target-component>org.exoplatform.services.scheduler.JobSchedulerService</target-component>
     <component-plugin>
@@ -217,15 +218,37 @@
           <property name="groupName" value="Notification"/>
           <property name="job" value="org.exoplatform.commons.notification.job.NotificationJob"/>
           <property name="repeatCount" value="0"/>
-          <property name="period" value="300000"/> <!-- 1 day-->    
+          <property name="period" value="300000"/>    
           <property name="startTime" value="+180000"/>
           <property name="endTime" value=""/>               
         </properties-param>
         <properties-param>
           <name>notification.info</name>
           <description></description>
-          <property name="maxToSend" value="20"/> <!-- 20 mails on one time to send-->          
-          <property name="sleepTimeNextSend" value="20"/> <!-- 20 seconds on one time to send-->  
+          <property name="maxToSend" value="20"/>           
+          <property name="sleepTimeNextSend" value="20"/>   
+        </properties-param>
+      </init-params>
+    </component-plugin>
+  </external-component-plugins> 
+  -->
+   
+  
+  <external-component-plugins>
+    <target-component>org.exoplatform.services.scheduler.JobSchedulerService</target-component>
+    <component-plugin>
+      <name>AddCronJob</name>
+      <set-method>addCronJob</set-method>
+      <type>org.exoplatform.services.scheduler.CronJob</type>
+      <description>add a cron job to the JobSchedulerService</description>
+      <init-params>
+        <properties-param>
+          <name>cronjob.info</name>
+          <description>New Notification job</description>
+          <property name="jobName" value="NotificationJob" />
+          <property name="groupName" value="Notification" />
+          <property name="job" value="org.exoplatform.commons.notification.job.NotificationJob" />
+          <property name="expression" value="0 * * * * ?" /> <!-- Second Minute Hour Day-of-month Month Day-of-week -->
         </properties-param>
       </init-params>
     </component-plugin>
